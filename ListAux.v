@@ -189,16 +189,26 @@ Proof.
           right; repeat append_crush.
 Qed.
 
-(** The property of [xs] being a prefix of [ys]. *)
-Fixpoint is_prefix
-  {A     : Type}
-  (xs ys : list A)
-: Prop :=
-  match xs, ys with
-  | nil       , _         => True
-  | _         , nil       => False
-  | cons x xs , cons y ys => (x = y /\ is_prefix xs ys)
-  end.
+(** The property of one list being a property of another. *)
+Inductive is_prefix {A : Type} : list A -> list A -> Prop :=
+  | IsPre_nil  : forall ys,      is_prefix nil ys
+  | IsPre_cons : forall x xs ys, is_prefix xs ys -> is_prefix (x :: xs) (x :: ys).
+
+(** The only prefix of [nil] is [nil]. *)
+Theorem is_prefix_nil : forall
+  {A  : Type}
+  (xs : list A),
+  xs <> nil -> @is_prefix A nil nil /\ ~is_prefix xs nil.
+Proof.
+  intros.
+  split.
+    constructor.
+    induction xs as [|xh xr].
+      contradict H. reflexivity.
+      unfold not.
+      intro Hp.
+      inversion Hp.
+Qed.
 
 (** With decidable equality on elements of [A], the
     [is_prefix] property is decidable. *)
@@ -210,88 +220,16 @@ Theorem is_prefix_decidable : forall
 Proof.
   intros A e xs.
   induction xs as [|x xr].
-    left; simpl; auto.
+    left; simpl. constructor.
     destruct ys as [|y yr].
-      right; simpl; auto.
+      right; apply is_prefix_nil; discriminate.
       simpl; destruct (e x y) as [H_xy_eq|H_xy_neq].
-        destruct (IHxr yr).
-          left; apply conj; assumption.
-          right; intuition.
-        destruct (IHxr yr).
-          right; intuition.
-          right; intuition.
-Qed.
-
-(** Return [true] iff [xs] is a prefix of [ys]. *)
-Fixpoint is_prefix_bool
-  {A     : Type}
-  (e     : forall (x y : A), {x = y}+{~x = y})
-  (xs ys : list A)
-: bool :=
-  match xs, ys with
-  | nil         , _           => true
-  | _           , nil         => false
-  | (cons x xs) , (cons y ys) =>
-    match e x y with
-    | left  _ => is_prefix_bool e xs ys
-    | right _ => false
-    end
-  end.
-
-Lemma is_prefix_bool_correct1 : forall
-  {A     : Type}
-  (e     : forall (x y : A), {x = y}+{~x = y})
-  (xs ys : list A),
-  is_prefix xs ys -> is_prefix_bool e xs ys = true.
-Proof.
-  intros A e xs.
-  induction xs as [|x xrest].
-    reflexivity.
-    destruct ys as [|y yrest].
-      intros H_pre; inversion H_pre.
-      intros H_pre.
-      destruct H_pre as [H_preL H_preR].
-        rewrite <- H_preL.
-        cut (is_prefix_bool e xrest yrest = true).
-          intros H_ind.
-          simpl; destruct (e x x) as [H_xx_eq|H_xx_neq].
-            assumption.
-            contradict H_xx_neq.
-          reflexivity.
-        apply IHxrest.
-        assumption.
-Qed.
-
-Lemma is_prefix_bool_correct2 : forall
-  {A     : Type}
-  (e     : forall (x y : A), {x = y}+{~x = y})
-  (xs ys : list A),
-  is_prefix_bool e xs ys = true -> is_prefix xs ys.
-Proof.
-  intros A e xs.
-  induction xs as [|x xrest].
-    reflexivity.
-    destruct ys as [|y yrest].
-      intros H_pre; inversion H_pre.
-      intros H_pre.
-        simpl in *; destruct (e x y) as [H_xy_eq|H_xy_neq].
-          apply conj.
-            assumption.
-            apply IHxrest; assumption.
-          inversion H_pre.
-Qed.
-
-(** Proof that [is_prefix_bool] does determine if [xs] is a prefix of [ys]. *)
-Theorem is_prefix_bool_correct : forall
-  {A     : Type}
-  (e     : forall (x y : A), {x = y}+{~x = y})
-  (xs ys : list A),
-  is_prefix xs ys <-> is_prefix_bool e xs ys = true.
-Proof.
-  intros.
-  apply conj.
-    apply is_prefix_bool_correct1.
-    apply is_prefix_bool_correct2.
+        destruct (IHxr yr) as [IHL|IHR].
+          rewrite H_xy_eq.
+          left; constructor; assumption.
+          right; intros Hc; inversion Hc; contradiction.
+        destruct (IHxr yr) as [IHL|IHR];
+          (right; intros Hc; inversion Hc; contradiction).
 Qed.
 
 (** If [xs ++ x] is a prefix of [ys], then [xs] is a prefix of [ys]. *)
@@ -302,18 +240,16 @@ Theorem is_prefix_app : forall
 Proof.
   intros A.
   induction xs as [|x xr].
-    reflexivity.
-    destruct zs as [|z zr].
+    constructor.
+    simpl; destruct zs as [|z zr].
       rewrite List.app_nil_r.
       intros; assumption.
       destruct ys as [|y yr].
-        auto.
-        intros H_p.
-        simpl in *; destruct H_p as [H_pL H_pR].
-          split.
-            assumption.
-            apply (IHxr (z :: zr) yr).
-            assumption.
+        intros H; inversion H.
+        intros H; inversion H.
+        constructor.
+        apply (IHxr (z :: zr) yr).
+        assumption.
 Qed.
 
 (** If [append_element xs x] is a prefix of [ys], then [xs] is a prefix of [ys]. *)
@@ -323,18 +259,10 @@ Theorem is_prefix_append_element : forall
   (x     : A),
   is_prefix (append_element xs x) ys -> is_prefix xs ys.
 Proof.
-  intros A.
+  intros until x.
   unfold append_element.
-  induction xs as [|x xr].
-    reflexivity.
-    destruct ys as [|y yr].
-      intuition.
-        intros x0 H_p.
-        simpl in *; destruct H_p as [H_pL H_pR].
-          split.
-            assumption.
-            apply (IHxr yr x0).
-            assumption.
+  intros.
+  apply (is_prefix_app xs (x :: nil) ys H).
 Qed.
 
 (** Everything is a prefix of itself. *)
@@ -345,20 +273,9 @@ Theorem is_prefix_self : forall
 Proof.
   intros A.
   induction xs.
-    exact I.
-    simpl; split. reflexivity. assumption.
-Qed.
-
-(** No non-[nil] list is a prefix of [nil]. *)
-Theorem is_prefix_nil_false : forall
-  {A  : Type}
-  (xs : list A),
-  xs <> nil -> ~is_prefix xs nil.
-Proof.
-  intros A xs H_neq.
-  induction xs.
-    contradict H_neq; reflexivity.
-    auto.
+    constructor.
+    constructor.
+    assumption.
 Qed.
 
 (** If a list if a prefix of [nil], then the list is [nil]. *)
@@ -367,67 +284,30 @@ Theorem is_prefix_nil_eq : forall
   (xs : list A),
   is_prefix xs nil -> xs = nil.
 Proof.
-  induction xs.
-    intros; reflexivity.
-    intros.
-      simpl in *.
-      inversion H.
-Qed.
-
-(** If [xs] is a prefix of [ys], then [x :: xs] is a prefix of [x :: ys]. *)
-Theorem is_prefix_cons : forall
-  {A     : Type}
-  (xs ys : list A)
-  (x     : A),
-  is_prefix xs ys -> is_prefix (x :: xs) (x :: ys).
-Proof.
-  induction xs.
-    simpl; auto.
-    destruct ys.
-      intros.
-      inversion H.
-      intros.
-      destruct H as [HL HR].
-        rewrite HL.
-        split.
-          reflexivity.
-          split.
-            reflexivity.
-            assumption.
+  intros. inversion H; reflexivity.
 Qed.
 
 (** The property that [P] holds for any element of [xs]. *)
-Fixpoint any
-  {A  : Type}
-  (P  : A -> Prop)
-  (xs : list A)
-: Prop :=
-  match xs with
-  | nil       => False
-  | cons x xs => P x \/ any P xs
-  end.
+Inductive any {A : Type} (P : A -> Prop) : list A -> Prop :=
+  | Any_here  : forall x xs, P x      -> any P (x :: xs)
+  | Any_there : forall x xs, any P xs -> any P (x :: xs).
 
 (* If [P] holds in [any P xs], then there is some [x] in [xs] such that [P x]. *)
 Theorem any_exists : forall {A : Type} (P : A -> Prop) (xs : list A),
   any P xs -> exists x, List.In x xs /\ P x.
 Proof.
-  intros A P.
-  induction xs as [|xh xr].
-    intro H_any; inversion H_any.
-    simpl; intro H_any.
-    destruct H_any as [H_anyL|H_anyR].
-      exists xh.
-        apply conj.
-          left; reflexivity.
+  intros A P xs H_any.
+  induction H_any.
+    exists x.
+      split.
+        left; reflexivity.
+        assumption.
+    destruct IHH_any as [z Hz].
+      destruct Hz as [HzL HzR].
+      exists z.
+        split.
+          right; assumption.
           assumption.
-      assert (exists x : A, List.In x xr /\ P x) as H_ex.
-        apply (IHxr H_anyR).
-      destruct H_ex as [H_exL H_exR].
-        destruct H_exR as [H_exRL H_exRR].
-          exists H_exL.
-            apply conj.
-              right; assumption.
-              assumption.
 Qed.
 
 (** If [P] holds for some element of [xs], then it holds for [x :: xs]. *)
@@ -438,10 +318,14 @@ Lemma any_cons : forall
   (xs : list A),
   any P xs -> any P (x :: xs).
 Proof.
-  intros A P x xs.
-  induction xs as [|xh xr].
-    intro Hc; inversion Hc.
-    intro Hany. right; assumption.
+  intros A P x xs H_any.
+  induction H_any.
+    apply Any_there.
+    apply Any_here.
+    assumption.
+    apply Any_there.
+    apply Any_there.
+    assumption.
 Qed.
 
 (** If [P] is decidable, then [any P xs] is decidable. *)
@@ -454,46 +338,12 @@ Theorem any_decidable : forall
 Proof.
   intros A P d xs.
   induction xs as [|xh xr].
-    right; auto.
+    right; intros Hc; inversion Hc.
     destruct IHxr as [IHxrL|IHxrR].
-      left; apply (any_cons P xh xr IHxrL).
+      left; apply Any_there; assumption.
       destruct (d xh) as [H_decL|H_decR].
-        left; left; assumption.
-        right; simpl; intuition.
-Qed.
-
-(** Apply [f] to all elements of [xs], returning [true] if [f] returns
-    [true] for any element. *)
-Fixpoint any_bool
-  {A  : Type}
-  (f  : A -> bool)
-  (xs : list A)
-: bool :=
-  match xs with
-  | nil       => false
-  | cons x xs => orb (f x) (any_bool f xs)
-  end.
-
-(** If a function passed to [any] never returns [true], then [any]
-    returns [false]. *)
-Theorem any_bool_correct_0 : forall {A : Type} (xs : list A),
-  any_bool (fun _ => false) xs = false.
-Proof.
-  intros A xs.
-  induction xs.
-    reflexivity.
-    simpl; exact IHxs.
-Qed.
-
-(** If a function passed to [any] returns [true], then [any]
-    returns [true]. *)
-Theorem any_bool_correct_1 : forall {A : Type} (x : A) (xs : list A),
-  any_bool (fun _ => true) (x :: xs) = true.
-Proof.
-  intros A x xs.
-  induction xs.
-    reflexivity.
-    simpl; exact IHxs.
+        left; apply Any_here; assumption.
+        right; intros Hc; inversion Hc; contradiction.
 Qed.
 
 (** Produce all sub-lists of [xs] with ends equal to that of [xs]. *)
@@ -537,17 +387,14 @@ Theorem contains_empty_false : forall {A : Type} (y : A) (ys : list A),
   ~contains nil (y :: ys).
 Proof.
   intros A y.
-  induction ys; (compute; intuition).
+  induction ys; (intros Hc; inversion Hc; inversion H0; inversion H0).
 Qed.
 
 (** All lists contain the empty list. *)
 Theorem contains_non_empty : forall {A : Type} (xs : list A),
   contains xs nil.
 Proof.
-  intros A.
-  induction xs as [|x xr].
-    left; intuition.
-    left; exact I.
+  induction xs; (left; constructor).
 Qed.
 
 (* With decidable equality on elements of [A], [contains] is
@@ -574,10 +421,7 @@ Proof.
     intros H_pre.
       destruct xs as [|x xr].
         inversion H_pre.
-        destruct H_pre as [H_preL H_preR].
-        left. split.
-          assumption.
-          assumption.
+        left; assumption.
 Qed.
 
 (** The last element of [xs], if any. *)
@@ -667,32 +511,80 @@ Proof.
   discriminate.
 Qed.
 
-Fixpoint prefixes'
-  {A   : Type}
-  (xs  : list A)
-  (acc : list A)
+Definition remove_last
+  {A  : Type}
+  (xs : list A)
+: list A :=
+  List.rev (List.tl (List.rev xs)).
+
+Theorem remove_last_nil : forall {A : Type},
+  remove_last (@nil A) = nil.
+Proof.
+  reflexivity.
+Qed.
+
+Theorem tail_length : forall
+  {A  : Type}
+  (xs : list A),
+  xs <> nil -> length xs = S (length (List.tl xs)).
+Proof.
+  induction xs as [|xh xr].
+    intros. contradict H; reflexivity.
+    intros. reflexivity.
+Qed.
+
+Theorem remove_last_length : forall
+  {A  : Type}
+  (xs : list A),
+  xs <> nil -> length xs = S (length (remove_last xs)).
+Proof.
+  induction xs as [|xh xr].
+    intros. contradict H; reflexivity.
+    intros.
+      unfold remove_last.
+      rewrite List.rev_length.
+      rewrite <- tail_length.
+      rewrite List.rev_length.
+      reflexivity.
+      simpl. auto with *.
+Qed.
+
+Fixpoint prefixes_including_self
+  {A  : Type}
+  (xs : list A)
 : list (list A) :=
-  match xs with
-  | nil     => nil
-  | x :: xr =>
-    match xr with
-    | nil => nil
-    | _   =>
-      let acc_new := acc ++ (x :: nil) in
-        acc_new :: (prefixes' xr acc_new)
-    end
-  end.
+  nil :: (match xs with
+    | nil       => nil
+    | cons y ys => List.map (cons y) (prefixes_including_self ys)
+    end).
 
 Definition prefixes
-  {A   : Type}
-  (xs  : list A)
+  {A  : Type}
+  (xs : list A)
 : list (list A) :=
-  nil :: prefixes' xs nil.
+  remove_last (prefixes_including_self xs).
+
+Theorem prefixes_nil : forall {A : Type},
+  prefixes (@nil A) = nil.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma prefixes_correct_0 : forall
+  {A     : Type}
+  (xs ys : list A),
+  is_prefix xs ys -> List.In xs (prefixes ys).
+Proof.
+  intros A xs ys H_pre.
+  induction H_pre.
+    destruct ys as [|yh yr].
+      simpl.
+Qed.
 
 Theorem prefixes_correct : forall
   {A     : Type}
   (xs ys : list A),
-  List.In ys (prefixes xs) <-> ys <> xs /\ is_prefix ys xs.
+  List.In ys (prefixes xs) <-> is_prefix ys xs.
 Proof.
 
 Admitted.
