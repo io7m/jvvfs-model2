@@ -554,56 +554,24 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma in_tail_app : forall
-  {A  : Type}
-  (x  : A)
-  (xs : list A),
-  xs <> nil -> List.In x (List.tl (xs ++ (x :: nil))).
-Proof.
-  intros.
-  induction xs as [|xh xr].
-    contradict H; reflexivity.
-    simpl. auto with *.
-Qed.
-
-Lemma map_not_nil : forall
-  {A B : Type}
-  (xs  : list A)
-  (f   : A -> B),
-  xs <> nil -> List.map f xs <> nil.
-Proof.
-  induction xs as [|xh xr].
-    intros. contradict H; reflexivity.
-    simpl. discriminate.
-Qed.
-
-Lemma map_cons_grow : forall
-  {A  : Type}
-  (x  : A)
-  (xs : list (list A)),
-  length xs <= length (List.map (cons x) xs).
-Proof.
-  induction xs as [|xh xr].
-    simpl; auto.
-    simpl. auto with *.
-Qed.
-
-Lemma rev_not_nil : forall
-  {A  : Type}
-  (xs : list A),
-  xs <> nil -> List.rev xs <> nil.
-Proof.
-  induction xs as [|xh xr].
-    intros. contradict H; reflexivity.
-    intros. simpl. auto with *.
-Qed.
-
 Lemma prefixes_correct : forall
   {A     : Type}
   (ys xs : list A),
   ys <> nil -> (is_prefix xs ys <-> List.In xs (prefixes ys)).
 Proof.
-
+  induction ys as [|yh yr].
+    intros; contradict H; reflexivity.
+    destruct yr as [|yrh yrr].
+      destruct xs as [|xh xr].
+        simpl. intuition. constructor.
+        simpl. intuition.
+        inversion H0.
+        inversion H2.
+        contradict H1. discriminate.
+      destruct xs as [|xh xr].
+        simpl. intuition.
+        unfold prefixes.
+        unfold prefixes_including_self.
 Admitted.
 
 Theorem skipn_length : forall

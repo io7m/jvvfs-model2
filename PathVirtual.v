@@ -338,7 +338,7 @@ Proof.
 Qed.
 
 Theorem contains_subtract_id : forall (p0 p1 : t),
-  contains p0 p1 -> p0 ++ (subtract p1 p0) = p1.
+  contains p1 p0 -> p1 ++ (subtract p1 p0) = p0.
 Proof.
 
 Admitted.
@@ -392,20 +392,15 @@ Proof.
     auto.
     intros.
     simpl in H.
-    
-Qed.
+    contradict H.
+Admitted.
 
 (** All paths returned by [enumeration] are ancestors of the original non-empty path. *)
 Theorem enumeration_ancestors : forall (p q : t),
   p <> root -> (List.In q (enumeration p) <-> is_ancestor_of q p).
 Proof.
-  intros p q H.
-  destruct p.
-    contradict H; reflexivity.
-    unfold enumeration.
-    unfold is_ancestor_of.
-    apply ListAux.prefixes_correct.
-Qed.
+
+Admitted.
 
 End Enumeration.
 
