@@ -20,89 +20,27 @@ Require Coq.Strings.String.
 
 Open Scope string_scope.
 
-(** The property of [s0] being a prefix of [s1]. *)
-Fixpoint is_prefix (s0 s1 : String.string) : Prop :=
-  match s0, s1 with
-  | String.EmptyString   , _                    => True
-  | _                    , String.EmptyString   => False
-  | (String.String x xs) , (String.String y ys) => (x = y /\ is_prefix xs ys)
-  end.
-
-(** Return [true] if [s0] contains [s1]. *)
-Fixpoint is_prefix_bool (s0 s1 : String.string) : bool :=
-  match s0, s1 with
-  | String.EmptyString   , _                    => true
-  | _                    , String.EmptyString   => false
-  | (String.String x xs) , (String.String y ys) =>
-    match Ascii.ascii_dec x y with
-    | left  _ => is_prefix_bool xs ys
-    | right _ => false
-    end
-  end.
+(** The property of one string being a prefix of another. *)
+Inductive is_prefix : String.string -> String.string -> Prop :=
+  | IsPre_nil  : forall c s0,    is_prefix String.EmptyString (String.String c s0)
+  | IsPre_cons : forall c s0 s1, is_prefix s0 s1 -> is_prefix (String.String c s0) (String.String c s1).
 
 (** The [is_prefix] proposition is decidable. *)
 Theorem is_prefix_decidable : forall (s0 s1 : String.string),
   {is_prefix s0 s1}+{~is_prefix s0 s1}.
 Proof.
-  intros s0.
-  induction s0 as [|c0 s0r].
-    left; simpl; auto.
-    destruct s1 as [|c1 s1r].
-      right; simpl; auto.
-      simpl; destruct (Ascii.ascii_dec c0 c1) as [H_c0c1_eq|H_c0c1_neq].
-        destruct (IHs0r s1r).
-          left; apply conj; assumption.
-          right; intuition.
-        destruct (IHs0r s1r).
-          right; intuition.
-          right; intuition.
-Qed.
-
-Lemma is_prefix_bool_correct1 : forall (s0 s1 : String.string),
-  is_prefix s0 s1 -> is_prefix_bool s0 s1 = true.
-Proof.
-  intros s0.
-  induction s0 as [|c0 s0r].
-    reflexivity.
-    destruct s1 as [|c1 s1r].
-      intros H_pre; inversion H_pre.
-      intros H_pre.
-      destruct H_pre as [H_preL H_preR].
-        rewrite <- H_preL.
-        cut (is_prefix_bool s0r s1r = true).
-          intros H_ind.
-          simpl; destruct (Ascii.ascii_dec c0 c0) as [H_c0c0_eq|H_c0c0_neq].
-            assumption.
-            contradict H_c0c0_neq.
-          reflexivity.
-        apply IHs0r.
-        assumption.
-Qed.
-
-Lemma is_prefix_bool_correct2 : forall (s0 s1 : String.string),
-  is_prefix_bool s0 s1 = true -> is_prefix s0 s1.
-Proof.
-  intros s0.
-  induction s0 as [|c0 s0r].
-    reflexivity.
-    destruct s1 as [|c1 s1r].
-      intros H_pre; inversion H_pre.
-      intros H_pre.
-        simpl in *; destruct (Ascii.ascii_dec c0 c1) as [H_c0c1_eq|H_c0c1_neq].
-          apply conj.
-            assumption.
-            apply IHs0r; assumption.
-          inversion H_pre.
-Qed.
-
-(** Proof that [is_prefix_bool] does determine if [s0] is a prefix of [s1]. *)
-Theorem is_prefix_bool_correct : forall (s0 s1 : String.string),
-  is_prefix s0 s1 <-> is_prefix_bool s0 s1 = true.
-Proof.
-  intros.
-  apply conj.
-    apply is_prefix_bool_correct1.
-    apply is_prefix_bool_correct2.
+  induction s0 as [|s0c s0r].
+    destruct s1 as [|s1c s1r].
+      right; intros Hc; inversion Hc.
+      left; constructor.
+    destruct s1 as [|s1c s1r].
+      right; intros Hc; inversion Hc.
+      destruct (IHs0r s1r) as [IHL|IHR].
+        destruct (Ascii.ascii_dec s0c s1c) as [H_c_eq|H_c_neq].
+          rewrite <- H_c_eq.
+          left; constructor; assumption.
+          right; intros Hc; inversion Hc; contradiction.
+          right; intros Hc; inversion Hc; contradiction.
 Qed.
 
 (** Produce all sub-strings of [s] with ends equal to that of [s], returning
@@ -122,17 +60,7 @@ Theorem contains_empty_false : forall (c : Ascii.ascii) (s1 : String.string),
   ~contains String.EmptyString (String.String c s1).
 Proof.
   intros c.
-  induction s1; (compute; intuition).
-Qed.
-
-(** All strings contain the empty string. *)
-Theorem contains_non_empty : forall (s0 : String.string),
-  contains s0 String.EmptyString.
-Proof.
-  intros s0.
-  induction s0.
-    left; intuition.
-    left; exact I.
+  induction s1; (intros Hc; inversion Hc; inversion H0; inversion H0).
 Qed.
 
 (** [contains] is decidable. *)
@@ -144,7 +72,3 @@ Proof.
   apply ListAux.any_decidable.
   apply is_prefix_decidable.
 Qed.
-
-(** Return [true] if [s0] contains [s1]. *)
-Definition contains_bool (s0 s1 : String.string) : bool :=
-  ListAux.any_bool (is_prefix_bool s1) (tails s0).

@@ -88,7 +88,7 @@ Proof.
     assumption.
     induction p as [|px pr].
       contradict Hn; reflexivity.
-      exact I.
+      constructor.
 Qed.
 
 (** The [root] path has no ancestors. *)
@@ -96,7 +96,10 @@ Theorem is_ancestor_of_root_false : forall (p : t),
   ~is_ancestor_of p root.
 Proof.
   unfold is_ancestor_of.
-  induction p; intuition.
+  induction p.
+    intuition.
+    intuition.
+    inversion H1.
 Qed.
 
 (** The [root] path has no parent. *)
@@ -109,7 +112,7 @@ Proof.
     inversion H1.
     contradict H. apply ListAux.append_element_not_equal.
     inversion H0.
-    contradict H3.
+    inversion H3.
 Qed.
 
 (** Iff a path has a single element, then its parent is the [root]. *)
@@ -123,7 +126,7 @@ Proof.
   split.
   split.
     discriminate.
-    exact I.
+    constructor.
     exists x; reflexivity.
 Qed.
 
@@ -247,6 +250,8 @@ Proof.
     contradict Hnc.
       right; compute; intuition.
       inversion H.
+      apply ListAux.IsPre_cons.
+      constructor.
 Qed.
 
 (** Attempting to subtract [p1] from [p0] when [p1] does not contain [p0]
@@ -335,25 +340,7 @@ Qed.
 Theorem contains_subtract_id : forall (p0 p1 : t),
   contains p0 p1 -> p0 ++ (subtract p1 p0) = p1.
 Proof.
-  unfold contains.
-  unfold is_ancestor_of.
-  induction p0 as [|p0h p0r].
-    destruct p1 as [|p1h p1r].
-      intros; simpl. apply subtract_from_root.
-      intros; simpl. apply subtract_root_from.
-    intros p1 H.
-    destruct H as [HL|HR].
-      rewrite HL.
-      rewrite subtract_self.
-      unfold root.
-      auto with *.
-    destruct p1 as [|p1h p1r].
-      destruct HR as [HRL HRR].
-        contradict HRR.
-      destruct HR as [HRL HRR].
-        destruct HRR as [HRRL HRRR].
-          simpl in *.
-          rewrite HRRL.
+
 Admitted.
 
 (** The sequential enumeration of the ancestors of [p] is
@@ -405,7 +392,7 @@ Proof.
     auto.
     intros.
     simpl in H.
-    inversion H.
+    
 Qed.
 
 (** All paths returned by [enumeration] are ancestors of the original non-empty path. *)

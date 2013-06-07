@@ -57,42 +57,69 @@ Proof.
     right. inversion 1; contradiction.
 Qed.
 
+(** Proof irrelevance for names. *)
+Theorem eq_irrelevant : forall (x y : t),
+  proj1_sig x = proj1_sig y -> x = y.
+Proof.
+  intros x y H_eq.
+  destruct x as [x Hx].
+  destruct y as [y Hy].
+  simpl in H_eq.
+  subst x.
+  rewrite (ProofIrrelevance.proof_irrelevance _ Hx Hy).
+  reflexivity.
+Qed.
+
 (** A tactic for producing validity proofs from valid string constants. *)
 Ltac valid_name_compute :=
-  repeat match goal with
+  match goal with
   | [ |- valid_name _]                                => split
   | [ |- ~StringAux.contains _ _ /\ _ ]               => split
   | [ |- ~StringAux.contains _ _ ]                    => vm_compute; intuition
-  | [ H  : Ascii.Ascii _ _ _ _ _ _ _ _ = _ |- False ] => inversion H
+  | [ H  : Ascii.Ascii _ _ _ _ _ _ _ _ = _ |- False ] => inversion H; clear H
+  | [ H  : ListAux.any _ _                 |- False ] => inversion H; clear H
+  | [ H  : StringAux.is_prefix _ _         |- False ] => inversion H; clear H
   end.
 
 (** Some example valid names include [bin], [usr], [file.txt], and [ps]. *)
 Example bin : t.
 Proof.
   apply (exist _ "bin").
-  valid_name_compute.
+  repeat valid_name_compute.
 Qed.
 
 Example usr : t.
 Proof.
   apply (exist _ "usr").
-  valid_name_compute.
+  repeat valid_name_compute.
 Qed.
 
 Example file_txt : t.
 Proof.
   apply (exist _ "file.txt").
-  valid_name_compute; inversion H.
+  repeat valid_name_compute.
 Qed.
 
 Example ps : t.
 Proof.
   apply (exist _ "ps").
-  valid_name_compute.
+  repeat valid_name_compute.
 Qed.
 
 (** An example invalid name is "xyz..xyz" *)
 Example xyz_invalid : ~valid_name "xyz..xyz".
 Proof.
-  vm_compute; intuition.
+  intros Hc.
+  inversion Hc.
+  inversion H0.
+  inversion H2.
+  contradict H3.
+  vm_compute.
+  apply ListAux.Any_there.
+  apply ListAux.Any_there.
+  apply ListAux.Any_there.
+  apply ListAux.Any_here.
+  apply StringAux.IsPre_cons.
+  apply StringAux.IsPre_cons.
+  apply StringAux.IsPre_nil.
 Qed.
